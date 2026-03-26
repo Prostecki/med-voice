@@ -1,0 +1,177 @@
+name: Med-Voice Cloud Run CI/CD
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - "backend/**"
+      - "infra/terraform/**"
+      - ".github/workflows/cloud-run-deploy.yaml"
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - "backend/**"
+      - "infra/terraform/**"
+      - ".github/workflows/cloud-run-deploy.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGION: europe-north1
+  TF_STATE_BUCKET: med-voice-tf-bucket
+  TF_STATE_PREFIX: terraform/state
+  SERVICE_NAME: med-voice-backend
+  IMAGE_NAME: med-voice-backend
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-vars.outputs.environment }}
+      secret_key_env: ${{ steps.set-vars.outputs.secret_key_env }}
+      project_id: ${{ steps.set-vars.outputs.project_id }}
+    steps:
+      - id: set-vars
+        name: Determine target environment
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            TARGET_BRANCH="${{ github.base_ref }}"
+          else
+            TARGET_BRANCH="${{ github.ref_name }}"
+          fi
+
+          case "${TARGET_BRANCH}" in
+            "main")
+              ENVIRONMENT="prod"
+              SECRET_KEY_ENV="PROD"
+              ;;
+            "develop")
+              ENVIRONMENT="dev"
+              SECRET_KEY_ENV="DEV"
+              ;;
+            *)
+              echo "Unsupported branch: ${TARGET_BRANCH}"
+              exit 1
+              ;;
+          esac
+
+          echo "environment=${ENVIRONMENT}" >> "$GITHUB_OUTPUT"
+          echo "secret_key_env=${SECRET_KEY_ENV}" >> "$GITHUB_OUTPUT"
+          echo "project_id=sm-gemini-playground" >> "$GITHUB_OUTPUT"
+
+  pr_checks:
+    needs: prepare
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets[format('WIF_SA_{0}', needs.prepare.outputs.secret_key_env)] }}
+          create_credentials_file: true
+          project_id: ${{ needs.prepare.outputs.project_id }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv and backend deps
+        working-directory: backend
+        run: |
+          pip install uv
+          uv pip install --system -r requirements.txt
+
+      - name: Syntax check backend
+        working-directory: backend
+        run: python -m py_compile app/agents/med_voice_agent/server.py app/agents/med_voice_agent/agent.py
+
+      - name: Terraform format check
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.11.4"
+
+      - name: Terraform validate
+        working-directory: infra/terraform
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+  deploy_backend:
+    needs: prepare
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.prepare.outputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets[format('WIF_SA_{0}', needs.prepare.outputs.secret_key_env)] }}
+          create_credentials_file: true
+          project_id: ${{ needs.prepare.outputs.project_id }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.11.4"
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker gcr.io --quiet
+
+      - name: Build and push backend image
+        run: |
+          gcloud builds submit backend \
+            --project "${{ needs.prepare.outputs.project_id }}" \
+            --tag "gcr.io/${{ needs.prepare.outputs.project_id }}/${IMAGE_NAME}:${GITHUB_SHA}"
+
+      - name: Terraform init
+        working-directory: infra/terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="prefix=${TF_STATE_PREFIX}"
+
+      - name: Terraform apply infrastructure and service
+        working-directory: infra/terraform
+        run: |
+          terraform apply -auto-approve \
+            -var="project_id=${{ needs.prepare.outputs.project_id }}" \
+            -var="region=${REGION}" \
+            -var="image_uri=gcr.io/${{ needs.prepare.outputs.project_id }}/${IMAGE_NAME}:${GITHUB_SHA}" \
+            -var="service_url="
+
+      - id: service_url
+        name: Read Cloud Run URL
+        working-directory: infra/terraform
+        run: |
+          SERVICE_URL="$(terraform output -raw cloud_run_url)"
+          echo "service_url=${SERVICE_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Terraform apply runtime callback URL
+        working-directory: infra/terraform
+        run: |
+          terraform apply -auto-approve \
+            -var="project_id=${{ needs.prepare.outputs.project_id }}" \
+            -var="region=${REGION}" \
+            -var="image_uri=gcr.io/${{ needs.prepare.outputs.project_id }}/${IMAGE_NAME}:${GITHUB_SHA}" \
+            -var="service_url=${{ steps.service_url.outputs.service_url }}"

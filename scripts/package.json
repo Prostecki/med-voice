@@ -1,0 +1,11 @@
+{
+    "name": "med-voice-scripts",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "seed": "node seed_firestore.js"
+    },
+    "dependencies": {
+        "firebase-admin": "^12.0.0"
+    }
+}

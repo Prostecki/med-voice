@@ -1,0 +1,16 @@
+google-adk==1.26.0
+google-genai==1.66.0
+google-cloud-firestore==2.23.0
+google-cloud-storage==3.9.0
+google-cloud-tasks==2.18.0
+google-cloud-logging==3.13.0
+google-cloud-secret-manager==2.26.0
+google-cloud-trace==1.18.0
+fastapi==0.135.1
+uvicorn==0.41.0
+twilio
+python-dotenv==1.2.2
+websockets==15.0.1
+pydantic==2.12.5
+pydantic-settings==2.13.1
+python-multipart==0.0.22

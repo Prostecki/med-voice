@@ -1,0 +1,18 @@
+# Exclude all virtual environments recursively
+**/.venv/
+.venv/
+# Exclude all python cache
+**/__pycache__/
+__pycache__/
+*.pyc
+# Exclude git and other large folders
+.git/
+.adk/
+portal/
+# Exclude local DBs and logs
+*.db
+*.log
+# Exclude staging leftovers
+staged_*/
+backend_tmp*/
+med_voice_deploy_tmp*/

@@ -1,0 +1,20 @@
+kind: hostname
+runtime: nodejs20
+
+env:
+  - variable: NEXT_PUBLIC_API_URL
+    value: https://<YOUR_CLOUD_RUN_HOST>/api
+  - variable: NEXT_PUBLIC_WS_URL
+    value: wss://<YOUR_CLOUD_RUN_HOST>/api/agents/voice
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: <YOUR_FIREBASE_PROJECT_ID>
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: <YOUR_FIREBASE_STORAGE_BUCKET>
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: <YOUR_FIREBASE_WEB_API_KEY>
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: <YOUR_FIREBASE_AUTH_DOMAIN>
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "<YOUR_FIREBASE_MESSAGING_SENDER_ID>"
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "<YOUR_FIREBASE_APP_ID>"

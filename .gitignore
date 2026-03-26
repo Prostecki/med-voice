@@ -1,0 +1,30 @@
+# Common ignores
+node_modules/
+.next/
+dist/
+build/
+.env*
+!.env.example
+.DS_Store
+
+# Terraform
+.terraform/
+terraform.tfstate*
+*.tfvars
+*.tfplan
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.db
+venv/
+.env
+.venv
+env/
+.pytest_cache/
+.adk/
+backend/app/agents/.adk/
+run_local.txt
+docs/gcloud_architecture.drawio
+hackathon_submit.md
