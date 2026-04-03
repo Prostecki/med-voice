@@ -97,7 +97,17 @@ jobs:
 
       - name: Syntax check backend
         working-directory: backend
-        run: python -m py_compile app/agents/med_voice_agent/server.py app/agents/med_voice_agent/agent.py
+        run: |
+          python -m py_compile \
+            app/agents/med_voice_agent/server.py \
+            app/agents/med_voice_agent/agent.py \
+            app/core/dependencies.py \
+            app/core/audio.py \
+            app/api/patients.py \
+            app/api/reports.py \
+            app/api/callbacks.py \
+            app/api/twilio_router.py \
+            app/api/voice.py
 
       - name: Terraform format check
         uses: hashicorp/setup-terraform@v3
